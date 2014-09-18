@@ -537,7 +537,7 @@ final class MetaSync extends Thread {
     final Scanner scanner = tsdb.getClient().newScanner(tsdb.dataTable());
     scanner.setStartKey(start_row);
     scanner.setStopKey(end_row);
-    scanner.setFamily("t".getBytes(Charset.forName("ISO-8859-1")));
+    scanner.setFamily("t".getBytes(Charset.forName("UTF-8")));
     return scanner;
   }
 

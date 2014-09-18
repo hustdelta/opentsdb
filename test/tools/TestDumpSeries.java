@@ -144,7 +144,7 @@ public class TestDumpSeries {
     writeData();    
     doDump.invoke(null, tsdb, client, "tsdb".getBytes(MockBase.ASCII()), false, 
         false, new String[] { "1356998400", "1357002000", "sum", "sys.cpu.user" });
-    final String[] log_lines = buffer.toString("ISO-8859-1").split("\n");
+    final String[] log_lines = buffer.toString("UTF-8").split("\n");
     assertNotNull(log_lines);
     // only worry about the immutable. The human readable date format
     // differs per location.
@@ -229,7 +229,7 @@ public class TestDumpSeries {
     writeData();
     doDump.invoke(null, tsdb, client, "tsdb".getBytes(MockBase.ASCII()), false, 
         true, new String[] { "1356998400", "1357002000", "sum", "sys.cpu.user" });
-    final String[] log_lines = buffer.toString("ISO-8859-1").split("\n");
+    final String[] log_lines = buffer.toString("UTF-8").split("\n");
     assertNotNull(log_lines);
     assertEquals("sys.cpu.user 1356998400 42 host=web01", log_lines[0]);
     assertEquals("sys.cpu.user 1356998401 257 host=web01", log_lines[1]);
@@ -253,7 +253,7 @@ public class TestDumpSeries {
     writeData();    
     doDump.invoke(null, tsdb, client, "tsdb".getBytes(MockBase.ASCII()), true, 
         false, new String[] { "1356998400", "1357002000", "sum", "sys.cpu.user" });
-    final String[] log_lines = buffer.toString("ISO-8859-1").split("\n");
+    final String[] log_lines = buffer.toString("UTF-8").split("\n");
     assertNotNull(log_lines);
     assertEquals(16, log_lines.length);
     assertEquals(-1, storage.numColumns(
@@ -267,7 +267,7 @@ public class TestDumpSeries {
     writeData();    
     doDump.invoke(null, tsdb, client, "tsdb".getBytes(MockBase.ASCII()), true, 
         true, new String[] { "1356998400", "1357002000", "sum", "sys.cpu.user" });
-    final String[] log_lines = buffer.toString("ISO-8859-1").split("\n");
+    final String[] log_lines = buffer.toString("UTF-8").split("\n");
     assertNotNull(log_lines);
     assertEquals(12, log_lines.length);
     assertEquals(-1, storage.numColumns(
@@ -281,7 +281,7 @@ public class TestDumpSeries {
     writeCompactedData();
     doDump.invoke(null, tsdb, client, "tsdb".getBytes(MockBase.ASCII()), false, 
         false, new String[] { "1356998400", "1357002000", "sum", "sys.cpu.user" });
-    final String[] log_lines = buffer.toString("ISO-8859-1").split("\n");
+    final String[] log_lines = buffer.toString("UTF-8").split("\n");
     assertNotNull(log_lines);
     // only worry about the immutable. The human readable date format
     // differs per location.
@@ -308,7 +308,7 @@ public class TestDumpSeries {
     writeCompactedData();
     doDump.invoke(null, tsdb, client, "tsdb".getBytes(MockBase.ASCII()), false, 
         true, new String[] { "1356998400", "1357002000", "sum", "sys.cpu.user" });
-    final String[] log_lines = buffer.toString("ISO-8859-1").split("\n");
+    final String[] log_lines = buffer.toString("UTF-8").split("\n");
     assertNotNull(log_lines);
     // only worry about the immutable. The human readable date format
     // differs per location.
@@ -322,7 +322,7 @@ public class TestDumpSeries {
     writeCompactedData();
     doDump.invoke(null, tsdb, client, "tsdb".getBytes(MockBase.ASCII()), true, 
         false, new String[] { "1356998400", "1357002000", "sum", "sys.cpu.user" });
-    final String[] log_lines = buffer.toString("ISO-8859-1").split("\n");
+    final String[] log_lines = buffer.toString("UTF-8").split("\n");
     assertNotNull(log_lines);
     assertEquals(5, log_lines.length);
     assertEquals(-1, storage.numColumns(
@@ -334,7 +334,7 @@ public class TestDumpSeries {
     writeCompactedData();
     doDump.invoke(null, tsdb, client, "tsdb".getBytes(MockBase.ASCII()), true, 
         true, new String[] { "1356998400", "1357002000", "sum", "sys.cpu.user" });
-    final String[] log_lines = buffer.toString("ISO-8859-1").split("\n");
+    final String[] log_lines = buffer.toString("UTF-8").split("\n");
     assertNotNull(log_lines);
     assertEquals(3, log_lines.length);
     assertEquals(-1, storage.numColumns(

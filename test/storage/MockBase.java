@@ -80,7 +80,7 @@ import com.stumbleupon.async.Deferred;
  */
 @Ignore
 public final class MockBase {
-  private static final Charset ASCII = Charset.forName("ISO-8859-1");
+  private static final Charset ASCII = Charset.forName("UTF-8");
   private TSDB tsdb;
   
   //      KEY           Column Family Qualifier     Timestamp     Value

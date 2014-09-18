@@ -857,6 +857,6 @@ public final class Internal {
     // Replace the pipe of the last iteration, close and set
     buf.setCharAt(buf.length() - 1, ')');
     buf.append("$");
-    scanner.setKeyRegexp(buf.toString(), Charset.forName("ISO-8859-1"));
+    scanner.setKeyRegexp(buf.toString(), Charset.forName("UTF-8"));
   }
 }
