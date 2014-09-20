@@ -272,6 +272,8 @@ public final class Plot {
       }
 
       gp.append("\n"
+                + "set term png font \"宋体,10\"\n"
+                // + "set term png font \"/Library/Fonts/Microsoft/SimSun.ttf,10\"\n"
                 + "set xdata time\n"
                 + "set timefmt \"%s\"\n"
                 + "if (GPVAL_VERSION < 4.6) set xtics rotate; else set xtics rotate right\n"
