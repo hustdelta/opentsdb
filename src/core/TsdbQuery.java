@@ -60,7 +60,7 @@ final class TsdbQuery implements Query {
    * Charset to use with our server-side row-filter.
    * We use this one because it preserves every possible byte unchanged.
    */
-  private static final Charset CHARSET = Charset.forName("UTF-8");
+  private static final Charset CHARSET = Charset.forName("ISO-8859-1");
 
   /** The TSDB we belong to. */
   private final TSDB tsdb;
