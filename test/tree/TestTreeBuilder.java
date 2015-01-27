@@ -16,8 +16,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyString;
-import static org.powermock.api.mockito.PowerMockito.mock;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -31,7 +29,6 @@ import net.opentsdb.meta.UIDMeta;
 import net.opentsdb.storage.MockBase;
 import net.opentsdb.tree.TreeRule.TreeRuleType;
 import net.opentsdb.uid.UniqueId.UniqueIdType;
-import net.opentsdb.utils.Config;
 import net.opentsdb.utils.JSON;
 
 import org.hbase.async.DeleteRequest;
@@ -59,8 +56,6 @@ import com.stumbleupon.async.Deferred;
   HBaseClient.class, Scanner.class, GetRequest.class, KeyValue.class, 
   DeleteRequest.class, Tree.class})
 public final class TestTreeBuilder {
-  private TSDB tsdb;
-  private HBaseClient client = mock(HBaseClient.class);
   private MockBase storage;
   private Tree tree = TestTree.buildTestTree();
   private TreeBuilder treebuilder;
@@ -90,12 +85,7 @@ public final class TestTreeBuilder {
   
   @Before
   public void before() throws Exception {
-    final Config config = new Config(false);
-    PowerMockito.whenNew(HBaseClient.class)
-      .withArguments(anyString(), anyString()).thenReturn(client);
-    tsdb = new TSDB(config);
-    
-    storage = new MockBase(tsdb, client, true, true, true, true);
+    storage = new MockBase(true, true, true, true);
     treebuilder = new TreeBuilder(storage.getTSDB(), tree);
     PowerMockito.spy(Tree.class);
     PowerMockito.doReturn(Deferred.fromResult(tree)).when(Tree.class, 

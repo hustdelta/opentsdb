@@ -18,8 +18,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.anyString;
-import static org.powermock.api.mockito.PowerMockito.mock;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -34,7 +32,6 @@ import net.opentsdb.storage.MockBase;
 import net.opentsdb.tree.Tree;
 import net.opentsdb.tree.TreeRule.TreeRuleType;
 import net.opentsdb.uid.UniqueId;
-import net.opentsdb.utils.Config;
 import net.opentsdb.utils.JSON;
 
 import org.hbase.async.DeleteRequest;
@@ -43,10 +40,8 @@ import org.hbase.async.HBaseClient;
 import org.hbase.async.KeyValue;
 import org.hbase.async.PutRequest;
 import org.hbase.async.Scanner;
-import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.powermock.api.mockito.PowerMockito;
 import org.powermock.core.classloader.annotations.PowerMockIgnore;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
@@ -59,8 +54,6 @@ import org.powermock.modules.junit4.PowerMockRunner;
   PutRequest.class, KeyValue.class, Scanner.class, DeleteRequest.class})
 public final class TestTree {
   private MockBase storage;
-  private TSDB tsdb;
-  private HBaseClient client = mock(HBaseClient.class);
   
   final static private Method TreetoStorageJson;
   static {
@@ -70,15 +63,6 @@ public final class TestTree {
     } catch (Exception e) {
       throw new RuntimeException("Failed in static initializer", e);
     }
-  }
-  
-  @Before
-  public void before() throws Exception {
-    final Config config = new Config(false);
-    PowerMockito.whenNew(HBaseClient.class)
-      .withArguments(anyString(), anyString()).thenReturn(client);
-    tsdb = new TSDB(config);
-    
   }
   
   @Test
@@ -736,7 +720,7 @@ public final class TestTree {
    */
   private void setupStorage(final boolean default_get, 
       final boolean default_put) throws Exception {
-    storage = new MockBase(tsdb, client, default_get, default_put, true, true);
+    storage = new MockBase(default_get, default_put, true, true);
     
     byte[] key = new byte[] { 0, 1 };
     // set pre-test values
