@@ -121,6 +121,7 @@ tsdb_SRC := \
 	src/utils/ByteArrayPair.java \
 	src/utils/Config.java \
 	src/utils/DateTime.java \
+	src/utils/FileSystem.java \
 	src/utils/JSON.java \
 	src/utils/JSONException.java	\
 	src/utils/Pair.java	\
@@ -184,6 +185,7 @@ test_SRC := \
 	test/tsd/TestHttpQuery.java	\
 	test/tsd/TestPutRpc.java	\
 	test/tsd/TestQueryRpc.java	\
+	test/tsd/TestQueryRpcLastDataPoint.java	\
 	test/tsd/TestRpcHandler.java	\
 	test/tsd/TestRpcPlugin.java	\
 	test/tsd/TestRTPublisher.java	\

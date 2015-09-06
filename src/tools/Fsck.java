@@ -15,6 +15,7 @@ package net.opentsdb.tools;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +31,8 @@ import org.hbase.async.DeleteRequest;
 import org.hbase.async.KeyValue;
 import org.hbase.async.PutRequest;
 import org.hbase.async.Scanner;
+
+import com.stumbleupon.async.Deferred;
 
 import net.opentsdb.core.Const;
 import net.opentsdb.core.IllegalDataException;
@@ -83,7 +86,7 @@ final class Fsck {
   /** Options to use while iterating over rows */
   private final FsckOptions options;
   
-  /** Counters incremented during processing. They have to be atomic countsers
+  /** Counters incremented during processing. They have to be atomic counters
    * as we may be running multiple fsck threads. */
   final AtomicLong kvs_processed = new AtomicLong();
   final AtomicLong rows_processed = new AtomicLong();
@@ -93,6 +96,7 @@ final class Fsck {
   final AtomicLong bad_key_fixed = new AtomicLong();
   final AtomicLong duplicates = new AtomicLong();
   final AtomicLong duplicates_fixed = new AtomicLong();
+  final AtomicLong duplicates_fixed_comp = new AtomicLong();
   final AtomicLong orphans = new AtomicLong();
   final AtomicLong orphans_fixed = new AtomicLong();
   final AtomicLong future = new AtomicLong();
@@ -592,74 +596,88 @@ final class Fsck {
         // or newest
         Collections.sort(time_map.getValue());       
         has_duplicates = true;
-        
+        // We want to keep either the first or the last incoming datapoint 
+        // and ignore delete the middle.
+
         final StringBuilder buf = new StringBuilder();
         buf.append("More than one column had a value for the same timestamp: ")
            .append("(")
            .append(time_map.getKey())
+           .append(" - ")
+           .append(new Date(time_map.getKey()))
            .append(")\n    row key: (")
            .append(UniqueId.uidToString(key))
            .append(")\n");
-        int index = 0;
-        DP last_dp = null;
-        for (DP dp : time_map.getValue()) {
-          buf.append("    ")
-             .append("write time: (")
-             .append(dp.kv.timestamp())
-             .append(") ")
-             .append(" compacted: (")
-             .append(dp.compacted)
-             .append(")  qualifier: ")
-             .append(Arrays.toString(dp.kv.qualifier()));
-          unique_columns.put(dp.kv.qualifier(), dp.kv.value());
-          if (options.lastWriteWins()) { 
-            if (index == time_map.getValue().size() - 1) {
-              buf.append("  <--- Keep latest");
-              valid_datapoints.getAndIncrement();
-              has_uncorrected_value_error |= Internal.isFloat(dp.qualifier()) ?
-                  fsckFloat(dp) : fsckInteger(dp);
-              if (Internal.inMilliseconds(dp.qualifier())) {
-                has_milliseconds = true;
-              } else {
-                has_seconds = true;
-              }
-            }
-            if (last_dp != null && options.fix() && options.resolveDupes()) {
-              if (!compact_row && options.fix() && options.resolveDupes() && 
-                  !last_dp.compacted) {
-                final DeleteRequest delete = new DeleteRequest(tsdb.dataTable(), 
-                    last_dp.kv.key(), last_dp.kv.family(), last_dp.qualifier());
-                tsdb.getClient().delete(delete);
-              }
-            }             
-          } else if (!options.lastWriteWins() && index == 0) {
-            buf.append("  <--- Keep oldest");
-            valid_datapoints.getAndIncrement();
-            has_uncorrected_value_error |= Internal.isFloat(dp.qualifier()) ?
-                fsckFloat(dp) : fsckInteger(dp);
-            if (Internal.inMilliseconds(dp.qualifier())) {
-              has_milliseconds = true;
-            } else {
-              has_seconds = true;
-            }
-          } else if (options.fix() && options.resolveDupes()) {
-            // don't want this dp
-            LOG.error("Delete: " + dp.kv);
-            if (!compact_row && options.fix() && options.resolveDupes() && 
-                !dp.compacted) {
-              final DeleteRequest delete = new DeleteRequest(tsdb.dataTable(), 
-                  dp.kv.key(), dp.kv.family(), dp.qualifier());
-              tsdb.getClient().delete(delete);
-            }
-          }
-          index++;
-          if (index < time_map.getValue().size()) {
-            buf.append("\n");
-          }
-          last_dp = dp;
-          duplicates.getAndIncrement();
+
+        int num_dupes = time_map.getValue().size();
+
+        final int delete_range_start;
+        final int delete_range_stop;
+        final DP dp_to_keep;
+        if (options.lastWriteWins()) {
+          // Save the latest datapoint from extinction.
+          delete_range_start = 0;
+          delete_range_stop = num_dupes - 1;
+          dp_to_keep = time_map.getValue().get(num_dupes - 1);
+        } else {
+          // Save the oldest datapoint from extinction.
+          delete_range_start = 1;
+          delete_range_stop = num_dupes;
+          dp_to_keep = time_map.getValue().get(0);
+          appendDatapointInfo(buf, dp_to_keep, " <--- keep oldest").append("\n");
         }
-        LOG.error(buf.toString());
+
+        unique_columns.put(dp_to_keep.kv.qualifier(), dp_to_keep.kv.value());
+        valid_datapoints.getAndIncrement();
+        has_uncorrected_value_error |= Internal.isFloat(dp_to_keep.qualifier()) ?
+            fsckFloat(dp_to_keep) : fsckInteger(dp_to_keep);
+
+        if (Internal.inMilliseconds(dp_to_keep.qualifier())) {
+          has_milliseconds = true;
+        } else {
+          has_seconds = true;
+        }
+
+        for (int dp_index = delete_range_start; dp_index < delete_range_stop; 
+            dp_index++) {
+          duplicates.getAndIncrement();
+          DP dp = time_map.getValue().get(dp_index);
+          final byte flags = (byte)Internal.getFlagsFromQualifier(dp.kv.qualifier());
+          buf.append("    ")
+            .append("write time: (")
+            .append(dp.kv.timestamp())
+            .append(" - ")
+            .append(new Date(dp.kv.timestamp()))
+            .append(") ")
+            .append(" compacted: (")
+            .append(dp.compacted)
+            .append(")  qualifier: ")
+            .append(Arrays.toString(dp.kv.qualifier()))
+            .append(" value: ")
+            .append(Internal.isFloat(dp.kv.qualifier()) ?
+              Internal.extractFloatingPointValue(dp.value(), 0, flags) :
+              Internal.extractIntegerValue(dp.value(), 0, flags))
+            .append("\n");
+          unique_columns.put(dp.kv.qualifier(), dp.kv.value());
+          if (options.fix() && options.resolveDupes()) {
+            if (compact_row) {
+              // Scheduled for deletion by compaction.
+              duplicates_fixed_comp.getAndIncrement();
+            } else if (!dp.compacted) {
+              LOG.debug("Removing duplicate data point: " + dp.kv);
+              tsdb.getClient().delete(
+                new DeleteRequest(
+                  tsdb.dataTable(), dp.kv.key(), dp.kv.family(), dp.qualifier()
+                )
+              );
+              duplicates_fixed.getAndIncrement();
+            }
+          }
+        }
+        if (options.lastWriteWins()) {
+          appendDatapointInfo(buf, dp_to_keep, " <--- keep latest").append("\n");
+        }
+        LOG.info(buf.toString());
       }
       
       // if an error was found in this row that was not marked for repair, then
@@ -693,13 +711,33 @@ final class Fsck {
             TSDB.FAMILY(), new_qualifier, new_value);
         
         // it's *possible* that the hash of our new compacted qualifier is in
-        // the delete list so double check. 
+        // the delete list so double check before we delete everything
         if (unique_columns.containsKey(new_qualifier)) {
-          LOG.info("Our qualifier was in the delete list!!!");
           if (Bytes.memcmp(unique_columns.get(new_qualifier), new_value) != 0) {
+            final StringBuilder buf = new StringBuilder();
+            buf.append("Overwriting compacted column with new value: ")
+            .append("\n    row key: (")
+            .append(UniqueId.uidToString(key))
+            .append(")\n    qualifier: ")
+            .append(Bytes.pretty(new_qualifier))
+            .append("\n    value: ")
+            .append(Bytes.pretty(new_value));
+            LOG.info(buf.toString());
             // Important: Make sure to wait for the write to complete before
             // proceeding with the deletes.
             tsdb.getClient().put(put).joinUninterruptibly();
+          } else if (has_duplicates) {
+            if (LOG.isDebugEnabled()) {
+              final StringBuilder buf = new StringBuilder();
+              buf.append("Re-compacted column is the same as the existing column: ")
+                 .append("\n    row key: (")
+                 .append(UniqueId.uidToString(key))
+                 .append(")\n    qualifier: ")
+                 .append(Bytes.pretty(new_qualifier))
+                 .append("\n    value: ")
+                 .append(Bytes.pretty(new_value));
+              LOG.debug(buf.toString());
+            }
           }
           unique_columns.remove(new_qualifier);
         } else {
@@ -708,11 +746,25 @@ final class Fsck {
           tsdb.getClient().put(put).joinUninterruptibly();
         }
         
+        final List<Deferred<Object>> deletes = 
+            new ArrayList<Deferred<Object>>(unique_columns.size());
         for (byte[] qualifier : unique_columns.keySet()) {
           final DeleteRequest delete = new DeleteRequest(tsdb.dataTable(), key, 
               TSDB.FAMILY(), qualifier);
-          tsdb.getClient().delete(delete);
+          if (LOG.isDebugEnabled()) {
+            final StringBuilder buf = new StringBuilder();
+            buf.append("Deleting column: ")
+               .append("\n    row key: (")
+               .append(UniqueId.uidToString(key))
+               .append(")\n    qualifier: ")
+               .append(Bytes.pretty(qualifier));
+            LOG.debug(buf.toString());
+          }
+          deletes.add(tsdb.getClient().delete(delete));
         }
+        Deferred.group(deletes).joinUninterruptibly();
+        duplicates_fixed.getAndAdd(duplicates_fixed_comp.longValue());
+        duplicates_fixed_comp.set(0);
       }
     }
     
@@ -842,6 +894,10 @@ final class Fsck {
         } else {
           return true;
         }
+      } else {
+        if (compact_row || options.compact()) {
+          appendDP(qual, value, value.length);
+        }
       }
       return false;
     }
@@ -945,6 +1001,25 @@ final class Fsck {
       value_index += value_length;  
     }
     
+    /**
+     * Appends a representation of a datapoint to a string buffer
+     * @param buf The buffer to modify
+     * @param msg An optional message to append
+     */
+    private StringBuilder appendDatapointInfo(final StringBuilder buf, 
+        final DP dp, final String msg) {
+      buf.append("    ")
+        .append("write time: (")
+        .append(dp.kv.timestamp())
+        .append(") ")
+        .append(" compacted: (")
+        .append(dp.compacted)
+        .append(")  qualifier: ")
+        .append(Arrays.toString(dp.kv.qualifier()))
+        .append(msg);
+      return buf;
+    }
+
     /**
      * Resets the running compaction variables. This should be called AFTER a 
      * {@link fsckDataPoints()} has been run and before the next row of values

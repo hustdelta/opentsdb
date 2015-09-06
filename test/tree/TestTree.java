@@ -75,10 +75,10 @@ public final class TestTree {
   @Before
   public void before() throws Exception {
     final Config config = new Config(false);
+    config.overrideConfig("tsd.storage.enable_compaction", "false");
     PowerMockito.whenNew(HBaseClient.class)
       .withArguments(anyString(), anyString()).thenReturn(client);
-    tsdb = new TSDB(config);
-    
+    tsdb = new TSDB(client, config);
   }
   
   @Test
@@ -552,15 +552,21 @@ public final class TestTree {
     setupStorage(true, true);
     Tree.fetchNotMatched(storage.getTSDB(), 655536, null);
   }
-  
+
   @Test
   public void deleteTree() throws Exception {
     setupStorage(true, true);
+
+    assertEquals(4, storage.numRows());
     assertNotNull(Tree.deleteTree(storage.getTSDB(), 1, true)
         .joinUninterruptibly());
-    assertEquals(0, storage.numRows());
+
+    byte[] remainingKey = new byte[] {0, 2};
+    assertEquals(1, storage.numRows());
+    assertNotNull(storage.getColumn(
+        remainingKey, "tree".getBytes(MockBase.ASCII())));
   }
-  
+
   @Test
   public void idToBytes() throws Exception {
     assertArrayEquals(new byte[]{ 0, 1 }, Tree.idToBytes(1));

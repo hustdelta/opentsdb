@@ -405,24 +405,21 @@ public final class TSMeta {
     if (column.value() == null || column.value().length < 1) {
       throw new IllegalArgumentException("Empty column value");
     }
-    
-    final TSMeta meta = JSON.parseToObject(column.value(), TSMeta.class);
+
+    final TSMeta parsed_meta = JSON.parseToObject(column.value(), TSMeta.class);
     
     // fix in case the tsuid is missing
-    if (meta.tsuid == null || meta.tsuid.isEmpty()) {
-      meta.tsuid = UniqueId.uidToString(column.key());
+    if (parsed_meta.tsuid == null || parsed_meta.tsuid.isEmpty()) {
+      parsed_meta.tsuid = UniqueId.uidToString(column.key());
     }
+
+    Deferred<TSMeta> meta = getFromStorage(tsdb, UniqueId.stringToUid(parsed_meta.tsuid));
     
     if (!load_uidmetas) {
-      return Deferred.fromResult(meta);
+      return meta;
     }
     
-    final LoadUIDs deferred = new LoadUIDs(tsdb, meta.tsuid);
-    try {
-      return deferred.call(meta);
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
+    return meta.addCallbackDeferring(new LoadUIDs(tsdb, parsed_meta.tsuid));
   }
   
   /**
@@ -528,7 +525,7 @@ public final class TSMeta {
       @Override
       public Deferred<Long> call(final Long incremented_value) 
         throws Exception {
-        
+LOG.info("Value: " + incremented_value);
         if (incremented_value > 1) {
           // TODO - maybe update the search index every X number of increments?
           // Otherwise the search engine would only get last_updated/count 
@@ -611,9 +608,9 @@ public final class TSMeta {
     // if the user has disabled real time TSMeta tracking (due to OOM issues)
     // then we only want to increment the data point count.
     if (!tsdb.getConfig().enable_realtime_ts()) {
-      return tsdb.getClient().bufferAtomicIncrement(inc);
+      return tsdb.getClient().atomicIncrement(inc);
     }
-    return tsdb.getClient().bufferAtomicIncrement(inc).addCallbackDeferring(
+    return tsdb.getClient().atomicIncrement(inc).addCallbackDeferring(
         new TSMetaCB());
   }
   
