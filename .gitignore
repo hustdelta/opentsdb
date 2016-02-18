@@ -40,3 +40,4 @@ src-test
 plugin_test.jar
 
 *.bak
+/bin/
